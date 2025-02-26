@@ -36,6 +36,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -86,17 +87,40 @@ public class AutoPvp extends BlackOutModule {
         .build()
     );
 
-    //--------------------General--------------------//
+    //--------------------Surround--------------------//
     private final Setting<Boolean> surround = sgSurround.add(new BoolSetting.Builder()
         .name("Surround")
         .description("Surrounds near the target.")
         .defaultValue(true)
         .build()
     );
+
     private final Setting<Boolean> surroundMove = sgSurround.add(new BoolSetting.Builder()
         .name("Surround Move")
-        .description("Moves inside your surround to.")
+        .description("Moves to the closest hole when available, even if you are already in a hole.")
         .defaultValue(false)
+        .build()
+    );
+
+    private final Setting<Boolean> useBlackOutSurround = sgSurround.add(new BoolSetting.Builder()
+        .name("BlackOut Surround")
+        .description("Wether to toggle BlackOut's builtin surround.")
+        .defaultValue(true)
+        .build()
+    );
+
+    private final Setting<Boolean> surroundMessage = sgSurround.add(new BoolSetting.Builder()
+        .name("Surround Message")
+        .description("Wether to send a message when enabling surround.")
+        .defaultValue(false)
+        .build()
+    );
+
+    private final Setting<List<String>> surroundMessages = sgSurround.add(new StringListSetting.Builder()
+        .name("Surround Messages")
+        .description("Messages to send when killing an enemy with blackout message mode on")
+        .defaultValue(List.of(".toggle surround+"))
+        .visible(surroundMessage::get)
         .build()
     );
 
@@ -288,6 +312,7 @@ public class AutoPvp extends BlackOutModule {
 
     private PlayerEntity target = null;
     private boolean inRange = false;
+    private boolean isSurroundActive = Modules.get().isActive(SurroundPlus.class);
 
     private int stuckTimer = 0;
     private int eatingSlot = -1;
@@ -396,10 +421,27 @@ public class AutoPvp extends BlackOutModule {
         }
 
         if (inRange && surround.get() && !shouldSuicide) {
-            if (!Modules.get().isActive(SurroundPlus.class))
-                Modules.get().get(SurroundPlus.class).toggle();
-        } else if (Modules.get().isActive(SurroundPlus.class))
-            Modules.get().get(SurroundPlus.class).toggle();
+            // Turn on surround
+            if (!isSurroundActive) {
+                if (useBlackOutSurround.get()) Modules.get().get(SurroundPlus.class).toggle();
+                if (surroundMessage.get()) {
+                    for (String msg : surroundMessages.get()) {
+                        ChatUtils.sendPlayerMsg(msg);
+                    }
+                }
+            }
+
+            isSurroundActive = true;
+        } else if (isSurroundActive) { // Turn off surround
+            isSurroundActive = false;
+
+            if (useBlackOutSurround.get()) Modules.get().get(SurroundPlus.class).toggle();
+            if (surroundMessage.get()) {
+                for (String msg : surroundMessages.get()) {
+                    ChatUtils.sendPlayerMsg(msg);
+                }
+            }
+        }
 
         if (shouldSuicide) {
             if (baritone.get())
